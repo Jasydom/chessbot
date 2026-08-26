@@ -1,4 +1,2 @@
 streamlit
 chess
-streamlit-chessboard
-streamlit-autorun
