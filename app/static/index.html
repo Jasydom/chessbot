@@ -28,7 +28,7 @@
         }
         #board {
             width: 100%;
-            margin: 15px 0;
+            margin: 8px 0;
         }
         .status {
             font-size: 1.1rem;
@@ -48,30 +48,164 @@
         button:hover {
             background-color: #45433f;
         }
+        .clock {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #262421;
+            border-radius: 4px;
+            padding: 8px 14px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .clock-label {
+            font-size: 0.85rem;
+            color: #8b8987;
+        }
+        .clock-time {
+            font-family: "SF Mono", "Consolas", "Roboto Mono", monospace;
+            font-size: 1.8rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            color: #bababa;
+        }
+        .clock.active {
+            background-color: #3d3b37;
+        }
+        .clock.active .clock-time {
+            color: #fff;
+        }
+        .clock.low .clock-time {
+            color: #d64f4f;
+        }
+        .clock.flagged {
+            background-color: #4a2222;
+        }
+        .time-control {
+            font-size: 0.8rem;
+            color: #8b8987;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>ChessBot — Fast & Fluid</h2>
-    <div class="status" id="status">À vous de jouer (Blancs)</div>
+    <h2>ChessBot &mdash; Fast &amp; Fluid</h2>
+    <div class="time-control">Cadence 3+2</div>
+    <div class="status" id="status">&Agrave; vous de jouer (Blancs)</div>
+
+    <div class="clock" id="clock-b">
+        <span class="clock-label">Bot (Noirs)</span>
+        <span class="clock-time" id="time-b">3:00</span>
+    </div>
+
     <div id="board"></div>
-    <button onclick="resetGame()">Nouvelle partie</button>
+
+    <div class="clock" id="clock-w">
+        <span class="clock-label">Vous (Blancs)</span>
+        <span class="clock-time" id="time-w">3:00</span>
+    </div>
+
+    <p><button onclick="resetGame()">Nouvelle partie</button></p>
 </div>
 
 <script>
+    var INITIAL_MS = 3 * 60 * 1000;
+    var INCREMENT_MS = 2 * 1000;
+
     var board = null;
     var game = new Chess();
     var $status = $('#status');
 
+    var clock = { w: INITIAL_MS, b: INITIAL_MS };
+    var running = null;      // 'w', 'b', ou null si la pendule est arretee
+    var lastTick = null;
+    var timerId = null;
+    var flagged = null;      // couleur ayant depasse le temps
+
+    function isOver() {
+        return game.game_over() || flagged !== null;
+    }
+
+    function formatTime(ms) {
+        if (ms < 0) ms = 0;
+        var m = Math.floor(ms / 60000);
+        var s = (ms - m * 60000) / 1000;
+        // Sous 10 secondes on affiche le dixieme, comme une pendule de blitz
+        if (ms < 10000) {
+            return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+        }
+        return m + ':' + String(Math.floor(s)).padStart(2, '0');
+    }
+
+    function renderClocks() {
+        ['w', 'b'].forEach(function (color) {
+            $('#time-' + color).text(formatTime(clock[color]));
+            $('#clock-' + color)
+                .toggleClass('active', running === color)
+                .toggleClass('low', clock[color] < 30000 && clock[color] > 0)
+                .toggleClass('flagged', flagged === color);
+        });
+    }
+
+    // Impute a la couleur active le temps ecoule depuis le dernier point de mesure.
+    function settle() {
+        var now = Date.now();
+        if (running !== null && lastTick !== null) {
+            clock[running] -= now - lastTick;
+        }
+        lastTick = now;
+    }
+
+    function startClock(color) {
+        settle();
+        running = color;
+        if (timerId === null) {
+            timerId = setInterval(tick, 100);
+        }
+        renderClocks();
+    }
+
+    function stopClock() {
+        settle();
+        running = null;
+        if (timerId !== null) {
+            clearInterval(timerId);
+            timerId = null;
+        }
+        renderClocks();
+    }
+
+    function tick() {
+        settle();
+        if (running !== null && clock[running] <= 0) {
+            clock[running] = 0;
+            onFlag(running);
+            return;
+        }
+        renderClocks();
+    }
+
+    function onFlag(color) {
+        flagged = color;
+        stopClock();
+        $status.text(color === 'w'
+            ? "Temps écoulé — le bot gagne."
+            : "Temps écoulé — vous gagnez !");
+    }
+
     function onDragStart (source, piece, position, orientation) {
-        if (game.game_over() || piece.search(/^b/) !== -1) {
+        if (isOver() || piece.search(/^b/) !== -1) {
             return false;
         }
     }
 
     async function onDrop (source, target) {
+        if (isOver()) return 'snapback';
+
         var fenBefore = game.fen();
+        // Instantane pour revenir en arriere si l'API refuse le coup
+        var snapshot = { w: clock.w, b: clock.b, running: running };
 
         var move = game.move({
             from: source,
@@ -83,7 +217,26 @@
 
         var uci = move.from + move.to + (move.promotion || '');
 
+        // Coup blanc termine : increment, puis la pendule passe aux Noirs.
+        // Au premier coup, c'est aussi ce qui demarre la pendule.
+        settle();
+        clock.w += INCREMENT_MS;
+        startClock('b');
+
         $status.text("Le bot réfléchit...");
+
+        function rollback() {
+            game.undo();
+            board.position(game.fen());
+            clock.w = snapshot.w;
+            clock.b = snapshot.b;
+            if (snapshot.running === null) {
+                stopClock();
+                lastTick = null;
+            } else {
+                startClock(snapshot.running);
+            }
+        }
 
         try {
             const response = await fetch('/api/move', {
@@ -95,20 +248,31 @@
             const data = await response.json();
 
             if (data.error) {
-                game.undo();
-                board.position(game.fen());
+                rollback();
                 $status.text("Coup invalide.");
                 return;
             }
 
             game.load(data.fen);
             board.position(game.fen());
+
+            // Le bot a repondu : increment pour les Noirs, la main revient aux Blancs.
+            settle();
+            if (data.bot_move) {
+                clock.b += INCREMENT_MS;
+            }
+
+            if (data.game_over) {
+                stopClock();
+            } else {
+                startClock('w');
+            }
+
             $status.text(data.status);
 
         } catch (err) {
             console.error("Erreur API:", err);
-            game.undo();
-            board.position(game.fen());
+            rollback();
             $status.text("Erreur de connexion au serveur.");
         }
     }
@@ -116,6 +280,12 @@
     function resetGame() {
         game.reset();
         board.position('start');
+        stopClock();
+        clock.w = INITIAL_MS;
+        clock.b = INITIAL_MS;
+        flagged = null;
+        lastTick = null;
+        renderClocks();
         $status.text("À vous de jouer (Blancs)");
     }
 
@@ -126,6 +296,8 @@
         onDrop: onDrop,
         pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
     });
+
+    renderClocks();
 </script>
 
 </body>
