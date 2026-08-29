@@ -59,4 +59,20 @@ def play_move(req: MoveRequest):
         "status": "À votre tour !" if not board.is_game_over() else "Partie terminée !"
     }
 
-app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+class NoCacheStaticFiles(StaticFiles):
+    """Force le navigateur a revalider a chaque visite.
+
+    StaticFiles envoie un ETag mais aucun Cache-Control. Sans cette directive,
+    le navigateur applique un cache heuristique et peut resservir une version
+    obsolete apres un deploiement, sans meme interroger le serveur.
+    "no-cache" n'empeche pas la mise en cache : il impose la revalidation, qui
+    renvoie un 304 vide tant que le fichier n'a pas change.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", NoCacheStaticFiles(directory="app/static", html=True), name="static")
