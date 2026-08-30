@@ -1,9 +1,12 @@
-import random
+import time
+
 import chess
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+from app.bots import DEFAULT_BOT, get_bot, list_bots
 
 app = FastAPI()
 
@@ -14,20 +17,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class MoveRequest(BaseModel):
     fen: str
     move: str
+    #: Adversaire choisi dans le menu du front.
+    bot: str = DEFAULT_BOT
+    #: Temps restant au bot sur la pendule, en millisecondes. Laisse les
+    #: moteurs a temps borne adapter leur reflexion a la cadence.
+    ms_left: int | None = None
 
-def get_random_bot_move(board: chess.Board) -> str | None:
-    legal_moves = list(board.legal_moves)
-    if not legal_moves:
-        return None
-    return random.choice(legal_moves).uci()
+
+@app.get("/api/bots")
+def get_bots():
+    return {"bots": list_bots(), "default": DEFAULT_BOT}
+
 
 @app.post("/api/move")
 def play_move(req: MoveRequest):
-    board = chess.Board(req.fen)
-    
+    bot = get_bot(req.bot)
+    if bot is None:
+        return {"error": f"Bot inconnu : {req.bot}"}
+
+    try:
+        board = chess.Board(req.fen)
+    except ValueError:
+        return {"error": "Position invalide"}
+
     try:
         user_move = chess.Move.from_uci(req.move)
     except ValueError:
@@ -48,16 +64,24 @@ def play_move(req: MoveRequest):
         }
 
     # 2. Jouer le coup du Bot (Noirs)
-    bot_move_uci = get_random_bot_move(board)
-    if bot_move_uci:
-        board.push(chess.Move.from_uci(bot_move_uci))
+    started = time.monotonic()
+    bot_move = bot.choose_move(board, ms_left=req.ms_left)
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+
+    bot_move_uci = None
+    if bot_move is not None:
+        bot_move_uci = bot_move.uci()
+        board.push(bot_move)
 
     return {
         "fen": board.fen(),
         "bot_move": bot_move_uci,
+        "bot": bot.name,
+        "thinking_ms": elapsed_ms,
         "game_over": board.is_game_over(),
         "status": "À votre tour !" if not board.is_game_over() else "Partie terminée !"
     }
+
 
 class NoCacheStaticFiles(StaticFiles):
     """Force le navigateur a revalider a chaque visite.

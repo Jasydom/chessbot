@@ -85,6 +85,24 @@
             color: #8b8987;
             margin-bottom: 10px;
         }
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: #8b8987;
+        }
+        select {
+            background-color: #363431;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -92,6 +110,12 @@
 <div class="container">
     <h2>ChessBot &mdash; Fast &amp; Fluid</h2>
     <div class="time-control">Cadence 3+2</div>
+
+    <div class="controls">
+        <label for="bot">Adversaire</label>
+        <select id="bot"></select>
+    </div>
+
     <div class="status" id="status">&Agrave; vous de jouer (Blancs)</div>
 
     <div class="clock" id="clock-b">
@@ -242,7 +266,13 @@
             const response = await fetch('/api/move', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fen: fenBefore, move: uci })
+                body: JSON.stringify({
+                    fen: fenBefore,
+                    move: uci,
+                    bot: $('#bot').val(),
+                    // Le bot borne sa reflexion sur son propre temps restant
+                    ms_left: Math.max(0, Math.round(clock.b))
+                })
             });
 
             const data = await response.json();
@@ -289,6 +319,24 @@
         $status.text("À vous de jouer (Blancs)");
     }
 
+    // La liste des adversaires vient du serveur : ajouter un bot cote Python
+    // suffit a le faire apparaitre ici.
+    async function loadBots() {
+        var $select = $('#bot');
+        try {
+            const response = await fetch('/api/bots');
+            const data = await response.json();
+            $select.empty();
+            data.bots.forEach(function (bot) {
+                $select.append($('<option>').val(bot.name).text(bot.label));
+            });
+            $select.val(data.default);
+        } catch (err) {
+            console.error("Impossible de charger la liste des bots:", err);
+            $select.empty().append($('<option>').val('normal').text('Minimax - Normal'));
+        }
+    }
+
     board = Chessboard('board', {
         draggable: true,
         position: 'start',
@@ -298,6 +346,7 @@
     });
 
     renderClocks();
+    loadBots();
 </script>
 
 </body>
