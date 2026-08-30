@@ -10,6 +10,9 @@ wiki) : valeur materielle + table piece/case. Deux tables existent pour le roi,
 une de milieu de partie (roi a l'abri derriere ses pions) et une de finale (roi
 actif au centre) ; on interpole entre les deux selon le materiel restant, sinon
 le bot garde son roi dans un coin en finale de pions.
+
+S'y ajoute un terme de securite du roi (abri de pions, colonnes ouvertes
+alentour), lui aussi cantonne au milieu de partie.
 """
 
 import chess
@@ -37,6 +40,18 @@ _TOTAL_PHASE = 24
 
 BISHOP_PAIR_MG = 30
 BISHOP_PAIR_EG = 45
+
+# Securite du roi. Ces penalites ne s'appliquent qu'au score de milieu de
+# partie : l'interpolation par la phase les fait disparaitre d'elle-meme en
+# finale, ou le roi doit au contraire sortir et devenir actif.
+#: Par pion manquant devant le roi (trois attendus).
+SHIELD_PENALTY_MG = 11
+#: Colonne voisine du roi sans pion ami : une tour adverse s'y engouffre.
+SEMI_OPEN_FILE_PENALTY_MG = 14
+#: Supplement si la colonne n'a plus aucun pion, ni ami ni ennemi.
+OPEN_FILE_EXTRA_MG = 10
+#: Nombre de pions d'abri attendus devant un roi correctement roque.
+_EXPECTED_SHIELD_PAWNS = 3
 
 # Tables piece/case, ecrites du point de vue des Blancs et en lecture visuelle :
 # la premiere ligne est la 8e rangee (a8..h8), la derniere est la 1re (a1..h1).
@@ -176,6 +191,68 @@ _KING_MG = [_build_king(_PST_KING_MG, chess.BLACK), _build_king(_PST_KING_MG, ch
 _KING_EG = [_build_king(_PST_KING_EG, chess.BLACK), _build_king(_PST_KING_EG, chess.WHITE)]
 
 
+def _shield_mask(color: chess.Color, king_square: int) -> int:
+    """Cases ou l'on attend les pions d'abri : les trois colonnes autour du roi,
+    sur les deux rangees devant lui. Un roi qui a quitte sa base n'a plus de
+    cases devant lui, et se retrouve penalise au maximum : c'est voulu.
+    """
+    file_index = chess.square_file(king_square)
+    rank_index = chess.square_rank(king_square)
+    files = [f for f in (file_index - 1, file_index, file_index + 1) if 0 <= f <= 7]
+    if color == chess.WHITE:
+        ranks = [r for r in (rank_index + 1, rank_index + 2) if r <= 7]
+    else:
+        ranks = [r for r in (rank_index - 1, rank_index - 2) if r >= 0]
+
+    mask = 0
+    for file_ in files:
+        for rank_ in ranks:
+            mask |= chess.BB_SQUARES[chess.square(file_, rank_)]
+    return mask
+
+
+def _neighbour_files(king_square: int) -> tuple[int, ...]:
+    """Colonnes du roi et ses voisines, en bitboards."""
+    file_index = chess.square_file(king_square)
+    return tuple(
+        chess.BB_FILES[f]
+        for f in (file_index - 1, file_index, file_index + 1)
+        if 0 <= f <= 7
+    )
+
+
+_SHIELD = [
+    [_shield_mask(chess.BLACK, sq) for sq in range(64)],
+    [_shield_mask(chess.WHITE, sq) for sq in range(64)],
+]
+_KING_FILES = [_neighbour_files(sq) for sq in range(64)]
+
+
+def _king_danger_mg(
+    color: chess.Color, king_square: int, own_pawns: int, enemy_pawns: int
+) -> int:
+    """Penalite de milieu de partie pour un roi mal protege.
+
+    Deux notions distinctes, volontairement cumulables : l'abri immediat (des
+    pions juste devant le roi) et les colonnes ouvertes a proximite (par ou
+    arrivent les tours et la dame). Un roi peut avoir ses trois pions et rester
+    expose si la colonne d'a cote est grande ouverte.
+    """
+    penalty = 0
+
+    present = chess.popcount(own_pawns & _SHIELD[color][king_square])
+    if present < _EXPECTED_SHIELD_PAWNS:
+        penalty += (_EXPECTED_SHIELD_PAWNS - present) * SHIELD_PENALTY_MG
+
+    for file_mask in _KING_FILES[king_square]:
+        if not own_pawns & file_mask:
+            penalty += SEMI_OPEN_FILE_PENALTY_MG
+            if not enemy_pawns & file_mask:
+                penalty += OPEN_FILE_EXTRA_MG
+
+    return penalty
+
+
 def evaluate(board: chess.Board) -> int:
     """Score de la position en centipions, du point de vue du camp au trait.
 
@@ -212,6 +289,13 @@ def evaluate(board: chess.Board) -> int:
     black_king = board.king(chess.BLACK)
     mg = common + _KING_MG[chess.WHITE][white_king] + _KING_MG[chess.BLACK][black_king]
     eg = common + _KING_EG[chess.WHITE][white_king] + _KING_EG[chess.BLACK][black_king]
+
+    # Securite du roi : uniquement sur le score de milieu de partie, pour que
+    # l'interpolation par la phase la neutralise en finale.
+    white_pawns = board.pawns & board.occupied_co[chess.WHITE]
+    black_pawns = board.pawns & board.occupied_co[chess.BLACK]
+    mg -= _king_danger_mg(chess.WHITE, white_king, white_pawns, black_pawns)
+    mg += _king_danger_mg(chess.BLACK, black_king, black_pawns, white_pawns)
 
     # La paire de fous vaut plus que la somme de ses parties, surtout en finale.
     if bishops[chess.WHITE] >= 2:
