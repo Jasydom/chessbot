@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .streamlit/
 .env
+.env.txt
 venv/
 .claude/settings.local.json
 data/
