@@ -1,0 +1,103 @@
+# Token lu depuis la variable d'environnement LICHESS_BOT_TOKEN (voir
+# lib/lichess_bot.py : si cette variable existe, elle ecrase ce champ).
+token: "xxxxxxxxxxxxxxxxxxxxxx"
+url: "https://lichess.org/"
+
+engine:
+  dir: "./engines/"
+  name: "chessbot-uci"
+  protocol: "uci"
+  ponder: false                    # uci.py ignore setoption/ponderhit, pas de reflexion sur le temps adverse.
+
+  polyglot:
+    enabled: false
+
+  draw_or_resign:
+    resign_enabled: false
+    offer_draw_enabled: false
+
+  online_moves:
+    max_out_of_book_moves: 10
+    max_retries: 2
+    chessdb_book:
+      enabled: false
+    lichess_cloud_analysis:
+      enabled: false
+    lichess_opening_explorer:
+      enabled: false
+    online_egtb:
+      enabled: false
+
+  lichess_bot_tbs:
+    syzygy:
+      enabled: false
+    gaviota:
+      enabled: false
+
+  # uci.py ne declare aucune option UCI (pas de "option name ..." en reponse
+  # a "uci"), donc uci_options doit rester vide : chess.engine refuse tout
+  # setoption vers une option que l'engine n'a pas annoncee.
+
+  silence_stderr: false
+
+abort_time: 30
+fake_think_time: false
+rate_limiting_delay: 0
+move_overhead: 2000
+max_takebacks_accepted: 0
+quit_after_all_games_finish: false
+
+correspondence:
+  move_time: 60
+  checkin_period: 300
+  disconnect_time: 150
+  ponder: false
+
+challenge:
+  concurrency: 1
+  games_reserved_for_humans: 0
+  sort_by: "best"
+  preference: "none"
+  accept_bot: true
+  only_bot: false
+  max_increment: 20
+  min_increment: 0
+  max_base: 1800
+  min_base: 0
+  max_days: 14
+  min_days: 1
+  variants:
+    - standard
+  time_controls:
+    - bullet
+    - blitz
+    - rapid
+    - classical
+  modes:
+    - casual
+    - rated
+  bullet_requires_increment: false
+  max_simultaneous_games_per_user: 5
+
+greeting:
+  hello: "Salut ! Je suis {me}, bon jeu !"
+  goodbye: "Bonne partie !"
+  hello_spectators: "Salut ! Je suis {me}."
+  goodbye_spectators: "Merci d'avoir suivi la partie !"
+
+matchmaking:
+  allow_matchmaking: true
+  allow_during_games: false
+  challenge_variant: "random"
+  challenge_timeout: 5             # Lance un defi apres 5 min d'inactivite.
+  challenge_initial_time:
+    - 60
+    - 180
+  challenge_increment:
+    - 1
+    - 2
+  opponent_rating_difference: 300
+  rating_preference: "none"
+  challenge_mode: "random"
+  challenge_filter: "none"
+  include_challenge_block_list: false

@@ -3,3 +3,11 @@ services:
     build: .
     ports:
       - "8000:8000"
+
+  lichess-bot:
+    build:
+      context: .
+      dockerfile: lichess-bot-service/Dockerfile
+    environment:
+      - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN}
+    restart: unless-stopped
