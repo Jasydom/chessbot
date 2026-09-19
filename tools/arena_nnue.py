@@ -16,6 +16,7 @@ Usage (necessite torch ; le modele doit deja exister, cf. train_nnue.py) :
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 
 from app.bots import get_bot
 from app.bots.minimax import MinimaxBot
@@ -29,6 +30,12 @@ def main() -> None:
     parser.add_argument("--model", default="data/nnue_prototype.pt")
     parser.add_argument("--games", type=int, default=DEFAULT_GAMES)
     parser.add_argument("--max-plies", type=int, default=DEFAULT_MAX_PLIES)
+    parser.add_argument(
+        "--depth",
+        type=int,
+        default=None,
+        help="Profondeur fixe pour les deux bots (sans limite de temps) : isole la qualite de l'eval du cout par noeud",
+    )
     args = parser.parse_args()
 
     baseline_bot = get_bot(args.against)
@@ -38,10 +45,15 @@ def main() -> None:
     if not isinstance(baseline_bot, MinimaxBot):
         raise SystemExit("--against doit etre un bot minimax (easy/normal/hard), pas un budget de temps a comparer")
 
+    if args.depth is not None:
+        # Budget de temps hors d'atteinte : c'est max_depth qui borne la recherche.
+        baseline_bot = replace(baseline_bot, max_depth=args.depth, time_budget=3600.0)
+
     nnue_evaluate = load_evaluate_fn(args.model)
     nnue_bot = MinimaxBot(
         name="nnue",
         label="Minimax - NNUE",
+        max_depth=baseline_bot.max_depth,
         time_budget=baseline_bot.time_budget,
         use_quiescence=baseline_bot.use_quiescence,
         evaluate_fn=nnue_evaluate,
@@ -51,7 +63,10 @@ def main() -> None:
 
     total = score.wins_a + score.wins_b + score.draws
     print()
-    print(f"Score sur {total} parties (meme budget de temps, {baseline_bot.time_budget}s) :")
+    if args.depth is not None:
+        print(f"Score sur {total} parties (profondeur fixe {args.depth}) :")
+    else:
+        print(f"Score sur {total} parties (meme budget de temps, {baseline_bot.time_budget}s) :")
     print(f"  nnue (A)         : {score.wins_a}")
     print(f"  {args.against} (B) : {score.wins_b}")
     print(f"  Nulles           : {score.draws}")

@@ -1,8 +1,10 @@
 """Mesure les noeuds/profondeur atteints par evaluate() et par le NNUE au
-meme budget de temps, pour confirmer que la deroute du NNUE dans
-tools/arena_nnue.py vient d'un cout par noeud bien plus eleve (chaque appel
-construit des tenseurs PyTorch et fait tourner deux passes avant), pas d'une
-eval de moins bonne qualite.
+meme budget de temps, pour quantifier le cout par noeud du NNUE (chaque appel
+construit des tenseurs PyTorch et fait tourner deux passes avant).
+
+Ce cout n'explique qu'une partie de la deroute dans tools/arena_nnue.py : a
+profondeur egale (`--depth`), le prototype perd aussi, donc son eval est
+elle-meme plus faible que celle de `evaluate()`.
 
 Usage (necessite torch) :
     python -m tools.diagnose_nnue_speed --model data/nnue_prototype.pt
