@@ -32,25 +32,10 @@ import torch
 from torch import nn
 
 from app.bots.evaluation import evaluate
+from app.bots.nnue_eval import ACC_SIZE, NUM_FEATURES, NNUE
+from app.bots.nnue_eval import half_kp_features as _half_kp_features
 
 CP_CLIP = 1000
-ACC_SIZE = 128
-NUM_FEATURES = 64 * 64 * 10  # HalfKP : 64 cases de roi x 64 cases x 5 types x 2 (ami/ennemi)
-_TYPE_IDX = {chess.PAWN: 0, chess.KNIGHT: 1, chess.BISHOP: 2, chess.ROOK: 3, chess.QUEEN: 4}
-
-
-def _half_kp_features(board: chess.Board, perspective: chess.Color) -> list[int]:
-    king_sq = board.king(perspective)
-    flip = perspective == chess.BLACK
-    king_rel = king_sq ^ 56 if flip else king_sq
-    indices = []
-    for square, piece in board.piece_map().items():
-        if piece.piece_type == chess.KING:
-            continue
-        sq_rel = square ^ 56 if flip else square
-        friend = 0 if piece.color == perspective else 1
-        indices.append(king_rel * 640 + sq_rel * 10 + _TYPE_IDX[piece.piece_type] * 2 + friend)
-    return indices
 
 
 def _target(record: dict, board: chess.Board) -> float:
@@ -74,29 +59,6 @@ def _load(path: str):
             them_feats.append(_half_kp_features(board, not board.turn))
             targets.append(_target(record, board))
     return boards, us_feats, them_feats, np.array(targets, dtype=np.float32)
-
-
-class NNUE(nn.Module):
-    """halfkp-128x2-32-32 : deux accumulateurs de 128 (poids partages), puis
-    un petit MLP. Le biais de l'accumulateur est ajoute une seule fois par
-    perspective, pas par feature active (comme dans l'implementation de
-    reference : c'est un biais de neurone, pas de feature)."""
-
-    def __init__(self, num_features: int = NUM_FEATURES, acc_size: int = ACC_SIZE):
-        super().__init__()
-        self.embed = nn.EmbeddingBag(num_features, acc_size, mode="sum")
-        self.acc_bias = nn.Parameter(torch.zeros(acc_size))
-        self.fc1 = nn.Linear(acc_size * 2, 32)
-        self.fc2 = nn.Linear(32, 32)
-        self.fc3 = nn.Linear(32, 1)
-
-    def forward(self, us_idx, us_off, them_idx, them_off):
-        us = self.embed(us_idx, us_off) + self.acc_bias
-        them = self.embed(them_idx, them_off) + self.acc_bias
-        x = torch.cat([us, them], dim=1).clamp(0, 1)  # ClippedReLU, comme le NNUE original
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        return self.fc3(x).squeeze(-1)
 
 
 def _make_batch(indices, feats_a, feats_b, targets, scale):

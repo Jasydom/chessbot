@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import chess
@@ -108,11 +109,13 @@ class _Search:
         deadline: float,
         max_depth: int,
         use_quiescence: bool = True,
+        evaluate_fn: Callable[[chess.Board], int] = evaluate,
     ) -> None:
         self.board = board
         self.deadline = deadline
         self.max_depth = max_depth
         self.use_quiescence = use_quiescence
+        self.evaluate_fn = evaluate_fn
 
         self.tt: dict[object, tuple[int, int, int, chess.Move | None]] = {}
         # Les extensions d'echec font grimper `ply` au-dela de `max_depth` :
@@ -209,7 +212,7 @@ class _Search:
         if self._is_draw():
             return 0
         if ply >= len(self.killers) - 1:
-            return evaluate(board)
+            return self.evaluate_fn(board)
 
         key = _transposition_key(board)
         entry = self.tt.get(key)
@@ -235,7 +238,7 @@ class _Search:
         if depth <= 0:
             if self.use_quiescence:
                 return self._quiescence(alpha, beta, ply)
-            return evaluate(board)
+            return self.evaluate_fn(board)
 
         in_check = board.is_check()
 
@@ -347,7 +350,7 @@ class _Search:
         self._check_time()
 
         board = self.board
-        stand_pat = evaluate(board)
+        stand_pat = self.evaluate_fn(board)
 
         # On suppose qu'il existe toujours au moins un coup au moins aussi bon
         # que "ne rien faire" : c'est faux en zugzwang, mais l'approximation est
@@ -496,6 +499,9 @@ class MinimaxBot:
     use_quiescence: bool = True
     #: Fraction du temps restant qu'on s'autorise a bruler sur un coup.
     clock_fraction: float = 1 / 30
+    #: Fonction d'evaluation statique, injectable pour comparer des eval
+    #: alternatives (ex. un modele appris) sans dupliquer la recherche.
+    evaluate_fn: Callable[[chess.Board], int] = evaluate
 
     def choose_move(
         self, board: chess.Board, ms_left: int | None = None
@@ -519,5 +525,6 @@ class MinimaxBot:
             deadline=time.monotonic() + budget,
             max_depth=self.max_depth,
             use_quiescence=self.use_quiescence,
+            evaluate_fn=self.evaluate_fn,
         )
         return search.run() or legal_moves[0]

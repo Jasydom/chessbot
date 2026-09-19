@@ -73,14 +73,10 @@ def _play_game(bot_white, bot_black, max_plies: int) -> str | None:
     return "white" if outcome.winner == chess.WHITE else "black"
 
 
-def run_match(name_a: str, name_b: str, games: int, max_plies: int) -> _Score:
-    bot_a = get_bot(name_a)
-    bot_b = get_bot(name_b)
-    if bot_a is None:
-        raise SystemExit(f"Bot inconnu : {name_a}")
-    if bot_b is None:
-        raise SystemExit(f"Bot inconnu : {name_b}")
-
+def run_match_with_bots(bot_a, bot_b, games: int, max_plies: int) -> _Score:
+    """Comme `run_match`, mais avec des bots deja instancies : permet de tester
+    un bot hors registre (ex. `tools/arena_nnue.py`) sans passer par `get_bot`.
+    """
     score = _Score()
     for game_index in range(games):
         # Parties appariees : A joue Blancs sur les parties paires, Noirs sur
@@ -102,6 +98,16 @@ def run_match(name_a: str, name_b: str, games: int, max_plies: int) -> _Score:
         print(f"Partie {game_index + 1}/{games} : {side_label} a les Blancs -> {outcome_label}")
 
     return score
+
+
+def run_match(name_a: str, name_b: str, games: int, max_plies: int) -> _Score:
+    bot_a = get_bot(name_a)
+    bot_b = get_bot(name_b)
+    if bot_a is None:
+        raise SystemExit(f"Bot inconnu : {name_a}")
+    if bot_b is None:
+        raise SystemExit(f"Bot inconnu : {name_b}")
+    return run_match_with_bots(bot_a, bot_b, games, max_plies)
 
 
 def main() -> None:
