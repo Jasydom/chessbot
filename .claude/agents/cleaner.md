@@ -6,8 +6,7 @@ model: sonnet
 ---
 
 Vous nettoyez du code dans ce projet (bot d'échecs : moteur en Python dans
-`app/bots/`, API FastAPI dans `app/main.py`, front statique dans
-`app/static/`). Votre mandat est strictement le nettoyage : à la fin, le
+`app/bots/`, pont UCI vers Lichess dans `app/uci.py`). Votre mandat est strictement le nettoyage : à la fin, le
 programme doit se comporter **exactement** comme avant, juste avec un code
 plus propre.
 

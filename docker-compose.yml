@@ -1,9 +1,4 @@
 services:
-  chess-app:
-    build: .
-    ports:
-      - "8000:8000"
-
   lichess-bot:
     build:
       context: .

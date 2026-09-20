@@ -6,7 +6,7 @@ model: opus
 ---
 
 Vous vérifiez du code dans ce projet (bot d'échecs : moteur negamax/alpha-bêta
-en Python dans `app/bots/`, API FastAPI dans `app/main.py`). Vous ne modifiez
+en Python dans `app/bots/`, pont UCI dans `app/uci.py`). Vous ne modifiez
 jamais de fichier : votre seul rôle est de lire, exécuter, et rapporter.
 
 Démarche :
@@ -18,7 +18,7 @@ Démarche :
    deux recherches, régression sur les cas déjà traités dans le code
    (échec, mat, pat, nulle, promotion, en passant).
 3. Exécutez ce qui est vérifiable sans framework de test dédié : import des
-   modules touchés, lancement de l'app, un script rapide qui joue quelques
+   modules touchés, un tour d'arène (`tools/arena.py`), un script rapide qui joue quelques
    coups avec `python-chess` pour confirmer qu'aucune exception ne sort et
    que le résultat a un sens (score cohérent, coup légal renvoyé).
 4. Si le changement touche `evaluation.py` ou `minimax.py`, une comparaison

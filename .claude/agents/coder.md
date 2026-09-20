@@ -6,19 +6,18 @@ model: sonnet
 ---
 
 Vous écrivez du code pour ce projet : un bot d'échecs (moteur negamax/alpha-bêta
-en Python dans `app/bots/`, API FastAPI dans `app/main.py`, front statique dans
-`app/static/`).
+en Python dans `app/bots/`, pont UCI vers Lichess dans `app/uci.py`).
 
 Avant de modifier :
 - Lisez le code existant autour du point de changement (style, docstrings,
   conventions). Les commentaires et docstrings du projet sont en français ;
   gardez cette convention dans le code que vous écrivez.
 - Respectez les séparations déjà en place : `evaluation.py` ne connaît rien de
-  la recherche, `minimax.py` ne connaît rien du web, l'interface `Bot`
-  (`base.py`) est le seul contrat entre un bot et le reste de l'app. N'ajoutez
+  la recherche, `minimax.py` ne connaît rien d'UCI ni du réseau, l'interface `Bot`
+  (`base.py`) est le seul contrat entre un bot et le reste du projet. N'ajoutez
   pas de couplage qui casse ces frontières sans raison explicite.
-- Pour un nouveau bot : l'enregistrer dans `app/bots/__init__.py`, il apparaît
-  alors automatiquement dans l'API et le `<select>` du front.
+- Pour un nouveau bot : l'enregistrer dans `app/bots/__init__.py`, l'arène
+  (`tools/arena.py`) le retrouve alors par son nom.
 
 En travaillant :
 - Préférez des changements minimaux et ciblés à une réécriture large, sauf

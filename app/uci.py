@@ -1,9 +1,9 @@
 """Moteur UCI : pont entre lichess-bot (ou toute interface UCI) et MinimaxBot.
 
-`lichess-bot` lance cet executable et lui parle en UCI sur stdin/stdout. On ne
-repasse pas par l'API HTTP : ce script importe directement `MinimaxBot` et
-traduit les commandes UCI (`position`, `go`, ...) en appels a
-`choose_move(board, ms_left)`, sans dependance reseau.
+`lichess-bot` lance cet executable et lui parle en UCI sur stdin/stdout. Ce
+script importe directement `MinimaxBot` et traduit les commandes UCI
+(`position`, `go`, ...) en appels a `choose_move(board, ms_left)`, sans
+dependance reseau.
 
 Lancement : `python app/uci.py` depuis la racine du projet (ou en donnant ce
 chemin comme `EngineDir`/executable a lichess-bot).

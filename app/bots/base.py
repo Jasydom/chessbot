@@ -1,9 +1,9 @@
 """Interface commune a tous les bots.
 
 Tout bot expose `choose_move(board, ms_left)` et renvoie un `chess.Move` legal
-(ou None s'il n'y a aucun coup possible). Le reste de l'application ne connait
-rien d'autre : c'est ce qui permet d'ajouter un moteur neuronal plus tard sans
-toucher a l'endpoint ni au front.
+(ou None s'il n'y a aucun coup possible). Le reste du projet (pont UCI, arene)
+ne connait rien d'autre : c'est ce qui permet d'ajouter un moteur neuronal plus
+tard sans toucher a ces appelants.
 """
 
 from typing import Protocol
@@ -12,9 +12,9 @@ import chess
 
 
 class Bot(Protocol):
-    #: identifiant stable, utilise dans l'API et dans le <select> du front
+    #: identifiant stable, utilise pour designer le bot dans l'arene
     name: str
-    #: libelle affiche a l'utilisateur
+    #: libelle lisible du bot
     label: str
 
     def choose_move(

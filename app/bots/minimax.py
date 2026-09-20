@@ -99,8 +99,8 @@ class _TimeUp(Exception):
 
 class _Search:
     """Etat d'une recherche. Instancie a chaque coup : aucun etat n'est partage
-    entre deux requetes, ce qui rend le bot utilisable depuis le threadpool de
-    FastAPI sans verrou.
+    entre deux recherches, ce qui rend le bot utilisable depuis plusieurs
+    threads sans verrou.
     """
 
     def __init__(

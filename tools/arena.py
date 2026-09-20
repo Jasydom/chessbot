@@ -1,8 +1,8 @@
 """Arene bot-vs-bot : fait jouer deux bots du registre l'un contre l'autre et
 affiche un score.
 
-Outil de developpement, hors de l'app web : aucun lien avec FastAPI, les bots
-sont appeles directement en process, sans aller-retour HTTP.
+Outil de developpement : les bots sont appeles directement en process, sans
+passer par UCI ni par le reseau.
 
 Version minimale : parties sequentielles, chaque bot pensant a son budget de
 temps par defaut (declare dans `app/bots/__init__.py`), sans simulation de

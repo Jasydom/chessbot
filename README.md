@@ -1,9 +1,8 @@
 # ChessBot
 
-Un moteur d'échecs écrit en Python, jouable de trois façons :
+Un moteur d'échecs écrit en Python, fait pour jouer sur Lichess :
 
-- **dans le navigateur** : une petite app web (FastAPI + chessboard.js) où l'on affronte le bot en blitz 3+2 ;
-- **sur Lichess** : le même moteur, exposé en UCI et branché sur [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot) ;
+- **sur Lichess** : le moteur, exposé en UCI et branché sur [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot) ;
 - **en laboratoire** : des outils pour mesurer sa force (arène bot contre bot, suivi des parties Lichess par version) et pour entraîner une évaluation apprise (prototype NNUE).
 
 Le moteur repose sur [`python-chess`](https://python-chess.readthedocs.io/) pour les règles ; toute la recherche et l'évaluation sont écrites ici.
@@ -22,7 +21,7 @@ Le moteur repose sur [`python-chess`](https://python-chess.readthedocs.io/) pour
 
 L'évaluation est isolée de la recherche : `MinimaxBot.evaluate_fn` est injectable, ce qui permet de comparer une autre évaluation (par exemple un réseau appris) sans dupliquer l'alpha-bêta.
 
-**Adversaires** (registre dans `app/bots/__init__.py`) :
+**Bots** (registre dans `app/bots/__init__.py`, utilisé par l'arène) :
 
 | Nom | Description |
 |---|---|
@@ -39,23 +38,8 @@ Chaque bot adapte son temps de réflexion au temps restant sur la pendule (`cloc
 python -m venv venv
 source venv/bin/activate        # Windows : venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+python -m tools.arena --bot-a random --bot-b normal --games 10
 ```
-
-Puis ouvrir <http://localhost:8000>. Le joueur a les Blancs, le bot les Noirs.
-
-### Avec Docker
-
-```bash
-docker compose up --build chess-app       # l'app web sur le port 8000
-```
-
-### API
-
-| Route | Description |
-|---|---|
-| `GET /api/bots` | liste des adversaires et adversaire par défaut |
-| `POST /api/move` | joue le coup du joueur puis celui du bot. Corps : `fen`, `move` (UCI), `bot`, `ms_left` (optionnel) |
 
 ## Jouer sur Lichess
 
@@ -89,8 +73,9 @@ Tous se lancent depuis la racine du projet avec `python -m tools.<nom>`.
 | `train_nnue` | entraîne le prototype NNUE (HalfKP 128×2-32-32, PyTorch) |
 | `arena_nnue` | fait jouer le NNUE contre un bot du registre, à temps égal ou à profondeur fixe (`--depth`) |
 | `diagnose_nnue_speed` | mesure nœuds et profondeur atteints par `evaluate()` et par le NNUE au même budget |
+| `bench_nps` | mesure nœuds/s et profondeur atteinte sur 3 positions (comparer CPython/PyPy ou des tailles de conteneur) |
 
-Ces outils ont des dépendances absentes de `requirements.txt`, car l'app déployée n'en a pas besoin : `scikit-learn`, `torch`, `zstandard` et `azure-storage-blob` selon l'outil.
+Ces outils ont des dépendances absentes de `requirements.txt`, car le bot déployé n'en a pas besoin : `scikit-learn`, `torch`, `zstandard` et `azure-storage-blob` selon l'outil.
 
 ### Données d'entraînement
 
@@ -109,22 +94,21 @@ C'est un prototype de recherche, pas encore un moteur déployé. Le réseau est 
 
 ## Déploiement
 
-L'app web tourne sur Azure Container Apps (image construite en local, poussée sur Azure Container Registry) :
+Le bot Lichess tourne sur Azure Container Apps (image construite en local, poussée sur Azure Container Registry) :
 
 ```bash
-docker build --no-cache -t <registre>.azurecr.io/chessbot:vN .
+docker build --no-cache -f lichess-bot-service/Dockerfile -t <registre>.azurecr.io/chessbot-lichess-bot:vN .
 az acr login --name <registre>
-docker push <registre>.azurecr.io/chessbot:vN
-az containerapp update -n <app> -g <groupe-de-ressources> --image <registre>.azurecr.io/chessbot:vN
+docker push <registre>.azurecr.io/chessbot-lichess-bot:vN
+az containerapp update -n <app> -g <groupe-de-ressources> --image <registre>.azurecr.io/chessbot-lichess-bot:vN
 ```
 
-Incrémenter `N` à chaque déploiement. Le premier accès après une période d'inactivité prend environ 20 secondes (démarrage à froid).
+Incrémenter `N` à chaque déploiement, puis `python -m tools.lichess_stats tag <version>`. Le conteneur reste en permanence à 1 réplica pour garder la connexion à Lichess ; le mettre à jour redémarre le bot, à faire entre deux parties.
 
 ## Structure
 
 ```
 app/
-  main.py            API FastAPI + fichiers statiques
   uci.py             pont UCI pour lichess-bot
   bots/
     base.py          interface Bot
@@ -132,7 +116,6 @@ app/
     evaluation.py    évaluation statique
     nnue_eval.py     évaluation par réseau HalfKP (prototype, dépend de torch)
     random_bot.py
-  static/index.html  front : échiquier, pendule 3+2, choix de l'adversaire
 lichess-bot-service/ Dockerfile + config de lichess-bot
 tools/               arène, suivi Lichess, entraînement (voir ci-dessus)
 .claude/agents/      sous-agents de dev (coder, verifier, cleaner)

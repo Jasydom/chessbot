@@ -1,7 +1,7 @@
 """Registre des adversaires disponibles.
 
-Ajouter un bot = l'instancier ici. L'endpoint et le <select> du front se
-mettent a jour tout seuls a partir de cette liste.
+Ajouter un bot = l'instancier ici : l'arene (`tools/arena.py`) le retrouve par
+son nom a partir de cette liste.
 """
 
 from app.bots.base import Bot
