@@ -11,7 +11,10 @@ chemin comme `EngineDir`/executable a lichess-bot).
 
 from __future__ import annotations
 
+import itertools
 import sys
+import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -29,6 +32,68 @@ ENGINE_AUTHOR = "Montaigne"
 ENGINE = MinimaxBot(name="uci", label="UCI", time_budget=120.0)
 
 board = chess.Board()
+
+# Positions sur lesquelles on fait chauffer le JIT : ouverture, milieu de
+# partie et finale, pour que les trois familles de chemins de code soient
+# compilees avant le premier vrai coup.
+_WARMUP_FENS = (
+    chess.STARTING_FEN,
+    "r1bqkb1r/pp1n1ppp/2p1pn2/3p4/2PP4/2N1PN2/PP3PPP/R1BQKB1R w KQkq - 0 6",
+    "8/5pk1/6p1/7p/7P/6P1/5PK1/8 w - - 0 1",
+)
+#: Duree d'une recherche de chauffe : c'est aussi le delai maximal que subit un
+#: `go` arrive pendant la chauffe, le temps de la voir s'interrompre.
+_WARMUP_SEARCH_SECONDS = 0.1
+#: Temps de recherche cumule au-dela duquel le JIT est chaud (mesure avec
+#: tools/bench_nps.py : le regime stable arrive apres une quarantaine de
+#: secondes de recherche).
+_WARMUP_TOTAL_SECONDS = 40.0
+
+
+class _Warmup:
+    """Chauffe le JIT de PyPy pendant que le moteur attend un `go`.
+
+    lichess-bot lance un nouveau moteur a chaque partie, donc le JIT repart a
+    froid : les premiers coups tournent 3 a 4 fois moins vite qu'avec CPython.
+    On met a profit le temps de reflexion de l'adversaire, pendant lequel le
+    moteur est de toute facon inactif. Sous CPython, il n'y a rien a chauffer :
+    la classe ne fait alors rien.
+    """
+
+    def __init__(self) -> None:
+        self._bot = MinimaxBot(name="warmup", label="warmup", time_budget=_WARMUP_SEARCH_SECONDS)
+        self._enabled = sys.implementation.name == "pypy"
+        self._spent = 0.0
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if not self._enabled or self._spent >= _WARMUP_TOTAL_SECONDS:
+            return
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Interrompt la chauffe et rend la main une fois la recherche en cours
+        terminee (au plus `_WARMUP_SEARCH_SECONDS`), pour ne pas disputer le
+        processeur au vrai coup."""
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+
+    def _run(self) -> None:
+        for fen in itertools.cycle(_WARMUP_FENS):
+            if self._stop.is_set() or self._spent >= _WARMUP_TOTAL_SECONDS:
+                return
+            started = time.monotonic()
+            self._bot.choose_move(chess.Board(fen))
+            self._spent += time.monotonic() - started
+
+
+WARMUP = _Warmup()
 
 
 def send(msg: str) -> None:
@@ -74,21 +139,22 @@ def handle_go(tokens: list[str]) -> None:
     if "movetime" in params:
         scale = round(1 / ENGINE.clock_fraction)
         ms_left = params["movetime"] * scale
+        increment = 0
     else:
         is_white = board.turn == chess.WHITE
         ms_left = params.get("wtime" if is_white else "btime")
         increment = params.get("winc" if is_white else "binc", 0)
-        if ms_left is not None:
-            # Approximation simple : le bonus d'increment s'ajoute au temps
-            # restant plutot que d'etre gere coup par coup.
-            ms_left += increment
 
-    move = ENGINE.choose_move(board, ms_left=ms_left)
+    WARMUP.stop()
+    move = ENGINE.choose_move(board, ms_left=ms_left, increment_ms=increment)
     send(f"bestmove {move.uci() if move is not None else '0000'}")
+    # Le moteur redevient inactif jusqu'au prochain `go` : on reprend la chauffe.
+    WARMUP.start()
 
 
 def main() -> None:
     global board
+    WARMUP.start()
     for line in sys.stdin:
         line = line.strip()
         if not line:

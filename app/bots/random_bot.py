@@ -13,7 +13,10 @@ class RandomBot:
     label = "Aleatoire"
 
     def choose_move(
-        self, board: chess.Board, ms_left: int | None = None
+        self,
+        board: chess.Board,
+        ms_left: int | None = None,
+        increment_ms: int = 0,
     ) -> chess.Move | None:
         legal_moves = list(board.legal_moves)
         if not legal_moves:

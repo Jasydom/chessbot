@@ -43,7 +43,7 @@ engine:
 abort_time: 30
 fake_think_time: false
 rate_limiting_delay: 0
-move_overhead: 2000
+move_overhead: 1000
 max_takebacks_accepted: 0
 quit_after_all_games_finish: false
 

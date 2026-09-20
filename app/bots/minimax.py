@@ -72,6 +72,10 @@ _MVV_LVA = {
     chess.KING: 20,
 }
 
+#: Part de l'increment qu'on accepte de depenser sur un coup ; le reste sert de
+#: marge contre la latence reseau.
+_INCREMENT_SHARE = 0.8
+
 #: Marge de delta pruning : en quiescence, on ignore une capture qui, meme en
 #: gagnant la piece prise, ne peut pas remonter jusqu'a alpha.
 _DELTA_MARGIN = 200
@@ -504,7 +508,10 @@ class MinimaxBot:
     evaluate_fn: Callable[[chess.Board], int] = evaluate
 
     def choose_move(
-        self, board: chess.Board, ms_left: int | None = None
+        self,
+        board: chess.Board,
+        ms_left: int | None = None,
+        increment_ms: int = 0,
     ) -> chess.Move | None:
         legal_moves = list(board.legal_moves)
         if not legal_moves:
@@ -514,9 +521,13 @@ class MinimaxBot:
 
         budget = self.time_budget
         if ms_left is not None:
-            # On ne depasse jamais une fraction du temps restant : en fin de
-            # blitz le bot accelere au lieu de tomber au drapeau.
-            budget = min(budget, max(ms_left / 1000 * self.clock_fraction, 0.05))
+            remaining = ms_left / 1000
+            # Une fraction du temps restant, plus l'essentiel de l'increment :
+            # il est rendu apres le coup, donc le depenser ne coute rien.
+            spend = remaining * self.clock_fraction + _INCREMENT_SHARE * increment_ms / 1000
+            # Jamais plus de la moitie du temps restant : en fin de blitz le bot
+            # accelere au lieu de tomber au drapeau, meme avec un gros increment.
+            budget = min(budget, max(min(spend, remaining / 2), 0.05))
 
         # La recherche travaille sur une copie : elle abandonne l'arbre en cours
         # sur _TimeUp sans depiler, et le plateau de l'appelant reste intact.

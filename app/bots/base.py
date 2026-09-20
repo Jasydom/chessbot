@@ -18,12 +18,15 @@ class Bot(Protocol):
     label: str
 
     def choose_move(
-        self, board: chess.Board, ms_left: int | None = None
+        self,
+        board: chess.Board,
+        ms_left: int | None = None,
+        increment_ms: int = 0,
     ) -> chess.Move | None:
         """Choisit un coup pour le camp au trait.
 
-        `ms_left` est le temps restant au bot sur la pendule, en millisecondes.
-        Un bot qui reflechit a temps borne s'en sert pour ne pas tomber au drapeau ;
-        les autres l'ignorent.
+        `ms_left` est le temps restant au bot sur la pendule, en millisecondes,
+        et `increment_ms` l'increment par coup. Un bot qui reflechit a temps
+        borne s'en sert pour ne pas tomber au drapeau ; les autres les ignorent.
         """
         ...
