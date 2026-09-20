@@ -10,8 +10,8 @@ Usage (depuis la racine du projet) :
     # A chaque deploiement d'une nouvelle version sur le compte bot :
     python -m tools.lichess_stats tag v2-king-safety
 
-    # Score par version pour le compte bot `chessbotmontaigne` :
-    python -m tools.lichess_stats stats chessbotmontaigne
+    # Score par version pour le compte bot `Taudambot` :
+    python -m tools.lichess_stats stats Taudambot
 
 Un jeton API (--token ou variable LICHESS_TOKEN) n'est pas requis pour lire
 l'historique public d'un compte, mais releve la limite de requetes.
