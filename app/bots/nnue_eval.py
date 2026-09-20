@@ -46,7 +46,11 @@ class NNUE(nn.Module):
     def __init__(self, num_features: int = NUM_FEATURES, acc_size: int = ACC_SIZE):
         super().__init__()
         self.embed = nn.EmbeddingBag(num_features, acc_size, mode="sum")
-        self.acc_bias = nn.Parameter(torch.zeros(acc_size))
+        # ~30 features actives sommees puis ClippedReLU sur [0,1] : avec l'init
+        # N(0,1) par defaut, ~90 % des unites saturent des le depart (gradient
+        # nul) et le reseau n'apprend pas le materiel. Init petite + biais centre.
+        nn.init.normal_(self.embed.weight, mean=0.0, std=0.05)
+        self.acc_bias = nn.Parameter(torch.full((acc_size,), 0.5))
         self.fc1 = nn.Linear(acc_size * 2, 32)
         self.fc2 = nn.Linear(32, 32)
         self.fc3 = nn.Linear(32, 1)

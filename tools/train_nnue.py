@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from array import array
 
 import chess
 import numpy as np
@@ -49,36 +50,43 @@ def _target(record: dict, board: chess.Board) -> float:
 
 
 def _load(path: str):
-    boards, us_feats, them_feats, targets = [], [], [], []
+    """Encode le fichier en features plates (indices concatenes + offsets par
+    position) plutot qu'en listes Python par position : a 1M+ positions, les
+    listes d'entiers et les `chess.Board` gardes en memoire ne tiennent plus.
+    Les FEN sont conservees pour reconstruire des plateaux a la demande.
+    """
+    fens: list[str] = []
+    targets: list[float] = []
+    us_flat, them_flat = array("i"), array("i")
+    us_off, them_off = array("q", [0]), array("q", [0])
     with open(path, encoding="utf-8") as f:
         for line in f:
             record = json.loads(line)
             board = chess.Board(record["fen"])
-            boards.append(board)
-            us_feats.append(_half_kp_features(board, board.turn))
-            them_feats.append(_half_kp_features(board, not board.turn))
+            fens.append(record["fen"])
+            us_flat.extend(_half_kp_features(board, board.turn))
+            them_flat.extend(_half_kp_features(board, not board.turn))
+            us_off.append(len(us_flat))
+            them_off.append(len(them_flat))
             targets.append(_target(record, board))
-    return boards, us_feats, them_feats, np.array(targets, dtype=np.float32)
+    us = (np.frombuffer(us_flat, dtype=np.intc), np.frombuffer(us_off, dtype=np.int64))
+    them = (np.frombuffer(them_flat, dtype=np.intc), np.frombuffer(them_off, dtype=np.int64))
+    return fens, us, them, np.array(targets, dtype=np.float32)
+
+
+def _gather(feats, indices):
+    flat, off = feats
+    starts, ends = off[indices], off[indices + 1]
+    idx = np.concatenate([flat[s:e] for s, e in zip(starts, ends)])
+    offsets = np.concatenate(([0], np.cumsum(ends - starts)[:-1]))
+    return torch.from_numpy(idx.astype(np.int64)), torch.from_numpy(offsets.astype(np.int64))
 
 
 def _make_batch(indices, feats_a, feats_b, targets, scale):
-    a_idx: list[int] = []
-    a_off = [0]
-    b_idx: list[int] = []
-    b_off = [0]
-    for i in indices:
-        a_idx.extend(feats_a[i])
-        a_off.append(len(a_idx))
-        b_idx.extend(feats_b[i])
-        b_off.append(len(b_idx))
-    y = targets[indices] / scale
-    return (
-        torch.tensor(a_idx, dtype=torch.long),
-        torch.tensor(a_off[:-1], dtype=torch.long),
-        torch.tensor(b_idx, dtype=torch.long),
-        torch.tensor(b_off[:-1], dtype=torch.long),
-        torch.tensor(y, dtype=torch.float32),
-    )
+    a_idx, a_off = _gather(feats_a, indices)
+    b_idx, b_off = _gather(feats_b, indices)
+    y = torch.from_numpy(targets[indices] / scale)
+    return a_idx, a_off, b_idx, b_off, y
 
 
 def _rmse(pred, y):
@@ -100,14 +108,16 @@ def main() -> None:
     args = parser.parse_args()
 
     print("chargement + encodage HalfKP...", flush=True)
-    boards, us_feats, them_feats, targets = _load(args.data)
-    n = len(boards)
+    fens, us_feats, them_feats, targets = _load(args.data)
+    n = len(fens)
     print(f"{n} positions encodees", flush=True)
 
     rng = np.random.default_rng(0)
     idx = np.arange(n)
     rng.shuffle(idx)
-    n_test = int(n * 0.2)
+    # Plafonne : au-dela de 100k positions de test la mesure ne gagne plus rien
+    # en precision, et evaluate() en Python coute cher sur tout le jeu de test.
+    n_test = min(int(n * 0.2), 100_000)
     test_idx, train_idx = idx[:n_test], idx[n_test:]
 
     model = NNUE()
@@ -141,7 +151,7 @@ def main() -> None:
 
     mean_pred = np.full_like(y_test, targets[train_idx].mean())
     handcrafted_pred = np.clip(
-        np.array([evaluate(boards[i]) for i in test_idx], dtype=np.float32), -CP_CLIP, CP_CLIP
+        np.array([evaluate(chess.Board(fens[i])) for i in test_idx], dtype=np.float32), -CP_CLIP, CP_CLIP
     )
 
     print("\n--- Comparaison sur le meme jeu de test (point de vue camp au trait) ---")
