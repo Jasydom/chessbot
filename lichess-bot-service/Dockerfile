@@ -40,5 +40,6 @@ RUN mkdir -p /lichess-bot/engines \
     && chmod +x /lichess-bot/engines/chessbot-uci
 
 COPY lichess-bot-service/config.yml /lichess-bot/config.yml
+COPY lichess-bot-service/book.bin /lichess-bot/engines/book.bin
 
 CMD ["python3", "lichess-bot.py"]

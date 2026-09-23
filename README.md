@@ -51,7 +51,7 @@ python -m tools.arena --bot-a random --bot-b normal --games 10
 docker compose up --build lichess-bot
 ```
 
-La configuration (défis acceptés, cadences, etc.) est dans `lichess-bot-service/config.yml`.
+La configuration (défis acceptés, cadences, etc.) est dans `lichess-bot-service/config.yml`. L'historique des versions déployées et leurs résultats sont dans [`VERSIONS.md`](VERSIONS.md).
 
 **Suivi par version.** Lichess ne connaît pas la notion de version du moteur ; `tools/lichess_stats.py` garde donc son propre repère dans `tools/lichess_versions.json` :
 
@@ -74,6 +74,7 @@ Tous se lancent depuis la racine du projet avec `python -m tools.<nom>`.
 | `arena_nnue` | fait jouer le NNUE contre un bot du registre, à temps égal ou à profondeur fixe (`--depth`) |
 | `diagnose_nnue_speed` | mesure nœuds et profondeur atteints par `evaluate()` et par le NNUE au même budget |
 | `bench_nps` | mesure nœuds/s et profondeur atteinte sur 3 positions (comparer CPython/PyPy ou des tailles de conteneur) |
+| `build_book` | génère `lichess-bot-service/book.bin`, le livre d'ouvertures Polyglot (lu par lichess-bot, pas par notre moteur) |
 
 Ces outils ont des dépendances absentes de `requirements.txt`, car le bot déployé n'en a pas besoin : `scikit-learn`, `torch`, `zstandard` et `azure-storage-blob` selon l'outil.
 
@@ -116,7 +117,7 @@ app/
     evaluation.py    évaluation statique
     nnue_eval.py     évaluation par réseau HalfKP (prototype, dépend de torch)
     random_bot.py
-lichess-bot-service/ Dockerfile + config de lichess-bot
+lichess-bot-service/ Dockerfile + config de lichess-bot + book.bin (livre d'ouvertures)
 tools/               arène, suivi Lichess, entraînement (voir ci-dessus)
 .claude/agents/      sous-agents de dev (coder, verifier, cleaner)
 ```

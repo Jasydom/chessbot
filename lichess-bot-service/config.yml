@@ -9,8 +9,20 @@ engine:
   protocol: "uci"
   ponder: false                    # uci.py ignore setoption/ponderhit, pas de reflexion sur le temps adverse.
 
+  # Livre Polyglot genere par tools/build_book.py (une trentaine de lignes de
+  # theorie ecrites a la main, cf. VERSIONS.md). Objectif : eviter que les
+  # premiers coups soient joues par la recherche pendant que le JIT PyPy est
+  # encore froid (app/uci.py chauffe le JIT en tache de fond entre les coups,
+  # mais rien ne chauffe avant le tout premier `go` d'une partie).
   polyglot:
-    enabled: false
+    enabled: true
+    book:
+      standard:
+        - engines/book.bin
+    min_weight: 1
+    selection: "weighted_random"
+    max_depth: 10
+    normalization: "none"
 
   draw_or_resign:
     resign_enabled: false
